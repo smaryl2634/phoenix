@@ -45,7 +45,7 @@ _last_tier_by_session: dict[str, str] = {}
 # "这个session这一轮真正会打给谁"，_record_usage/_record_api_error 优先读它。
 _resolved_model_by_session: dict[str, str] = {}
 
-_STATE_DIR = Path(__file__).resolve().parent / "state"
+_STATE_DIR = get_hermes_home() / "phoenix_v7_state"
 # 2026-07-28修正：_cost_monitor 不再用来挡任何工具调用（原来 is_over_limit() 基于
 # _USD_PER_1K_TOKENS 这个纯靠猜的费率，不对应任何具体模型真实计费，是2026-07-28那次
 # 真机事故——熔断/成本上限跳闸后无差别锁死全部工具且无自救手段——的根源之一。用户复盘

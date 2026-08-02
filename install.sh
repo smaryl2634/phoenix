@@ -27,7 +27,21 @@ fi
 
 mkdir -p "$PLUGINS_DIR"
 
+NEW_STATE_DIR="$HERMES_DIR/phoenix_v7_state"
+
 if [ -d "$TARGET_DIR" ]; then
+  OLD_STATE_DIR="$TARGET_DIR/state"
+  if [ -d "$OLD_STATE_DIR" ]; then
+    echo "📦 检测到旧版本的 state 数据，迁移到新位置：$NEW_STATE_DIR"
+    mkdir -p "$NEW_STATE_DIR"
+    for f in "$OLD_STATE_DIR"/*; do
+      [ -e "$f" ] || continue
+      dest="$NEW_STATE_DIR/$(basename "$f")"
+      if [ ! -e "$dest" ]; then
+        cp "$f" "$dest"
+      fi
+    done
+  fi
   BACKUP_DIR="${TARGET_DIR}.backup.$(date +%Y%m%d%H%M%S)"
   echo "⚠️  检测到已安装的旧版本，备份到：$BACKUP_DIR"
   mv "$TARGET_DIR" "$BACKUP_DIR"
@@ -37,7 +51,7 @@ echo "📦 安装到 $TARGET_DIR ..."
 cp -R "$SOURCE_DIR" "$TARGET_DIR"
 
 # 安装产生的本地状态/缓存目录不需要带过去
-rm -rf "$TARGET_DIR/__pycache__" "$TARGET_DIR/.pytest_cache" "$TARGET_DIR/venv" "$TARGET_DIR/state"/*.json 2>/dev/null || true
+rm -rf "$TARGET_DIR/__pycache__" "$TARGET_DIR/.pytest_cache" "$TARGET_DIR/venv" 2>/dev/null || true
 
 echo "✅ 文件复制完成"
 echo ""

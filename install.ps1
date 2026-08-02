@@ -29,7 +29,20 @@ if (-not (Test-Path $SourceDir)) {
 
 New-Item -ItemType Directory -Force -Path $PluginsDir | Out-Null
 
+$NewStateDir = Join-Path $HermesDir "phoenix_v7_state"
+
 if (Test-Path $TargetDir) {
+    $OldStateDir = Join-Path $TargetDir "state"
+    if (Test-Path $OldStateDir) {
+        Write-Host "`u{1F4E6} 检测到旧版本的 state 数据，迁移到新位置：$NewStateDir"
+        New-Item -ItemType Directory -Force -Path $NewStateDir | Out-Null
+        Get-ChildItem $OldStateDir -File | ForEach-Object {
+            $dest = Join-Path $NewStateDir $_.Name
+            if (-not (Test-Path $dest)) {
+                Copy-Item $_.FullName $dest
+            }
+        }
+    }
     $BackupDir = "$TargetDir.backup.$(Get-Date -Format 'yyyyMMddHHmmss')"
     Write-Host "`u26A0`uFE0F  检测到已安装的旧版本，备份到：$BackupDir"
     Move-Item $TargetDir $BackupDir
@@ -42,8 +55,6 @@ foreach ($junk in @("__pycache__", ".pytest_cache", "venv")) {
     $junkPath = Join-Path $TargetDir $junk
     if (Test-Path $junkPath) { Remove-Item $junkPath -Recurse -Force }
 }
-$stateDir = Join-Path $TargetDir "state"
-if (Test-Path $stateDir) { Get-ChildItem $stateDir -Filter "*.json" | Remove-Item -Force }
 
 Write-Host "`u2705 文件复制完成"
 Write-Host ""
