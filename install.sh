@@ -38,7 +38,7 @@ if [ -d "$TARGET_DIR" ]; then
       [ -e "$f" ] || continue
       dest="$NEW_STATE_DIR/$(basename "$f")"
       if [ ! -e "$dest" ]; then
-        cp "$f" "$dest"
+        cp -R "$f" "$dest"
       fi
     done
   fi

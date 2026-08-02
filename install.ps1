@@ -36,10 +36,10 @@ if (Test-Path $TargetDir) {
     if (Test-Path $OldStateDir) {
         Write-Host "`u{1F4E6} 检测到旧版本的 state 数据，迁移到新位置：$NewStateDir"
         New-Item -ItemType Directory -Force -Path $NewStateDir | Out-Null
-        Get-ChildItem $OldStateDir -File | ForEach-Object {
+        Get-ChildItem $OldStateDir | ForEach-Object {
             $dest = Join-Path $NewStateDir $_.Name
             if (-not (Test-Path $dest)) {
-                Copy-Item $_.FullName $dest
+                Copy-Item $_.FullName $dest -Recurse
             }
         }
     }
