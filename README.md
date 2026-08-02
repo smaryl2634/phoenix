@@ -137,7 +137,7 @@ phoenix/
 
 <img src="docs/wechat-qrcode.jpg" alt="微信二维码" width="240">
 
-扫码添加微信，交流不死鸟的使用问题或合作。
+扫码添加微信，交流 Hermes 与不死鸟的使用问题或合作交流。
 
 ## 许可证
 
