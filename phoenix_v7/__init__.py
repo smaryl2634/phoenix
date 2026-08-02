@@ -1,7 +1,7 @@
 """Phoenix V7 - Hermes Agent 插件.
 
-最小核心：路由分档 / 成本与风险防线 / 记忆 / 自愈。
-全部通过 Hermes 官方 middleware + MemoryProvider ABC 接入，不修改任何 Hermes 核心文件。
+最小核心：路由分档 / 成本与风险防线 / 自愈。
+全部通过 Hermes 官方 middleware 接入，不修改任何 Hermes 核心文件。
 """
 from __future__ import annotations
 
@@ -26,7 +26,6 @@ from .guardrails.tool_guard import (
     evaluate_loop_checklist_gate as _evaluate_loop_checklist_gate,
 )
 from agent.auxiliary_client import get_text_auxiliary_client
-from .memory.provider import PhoenixMemoryProvider  # noqa: F401  (Hermes顶层类发现机制需要)
 from .selfheal.antibody import AntibodyLibrary
 from .selfheal.error_processor import ErrorProcessor
 

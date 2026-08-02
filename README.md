@@ -3,10 +3,10 @@
 <img src="docs/images/cover.png" alt="不死鸟 Phoenix" width="100%">
 
 [![Version](https://img.shields.io/badge/version-7.4.4-2563EB.svg?style=flat-square)](phoenix_v7/plugin.yaml)
-[![Tests](https://img.shields.io/badge/tests-166%2F166-A3FF12.svg?style=flat-square)](phoenix_v7/tests)
+[![Tests](https://img.shields.io/badge/tests-155%2F155-A3FF12.svg?style=flat-square)](phoenix_v7/tests)
 [![License](https://img.shields.io/badge/license-CC%20BY--NC%204.0-16A34A.svg?style=flat-square)](LICENSE)
 
-> 装在 [Hermes Agent](https://github.com/NousResearch/hermes-agent) 上的插件。路由分档、风险防线、三层记忆、自愈系统，全程官方插件钩子接入，不改 Hermes 一行核心代码。
+> 装在 [Hermes Agent](https://github.com/NousResearch/hermes-agent) 上的插件。路由分档、风险防线、自愈系统，全程官方插件钩子接入，不改 Hermes 一行核心代码。
 
 **支持：Hermes Agent。** 全程通过官方插件系统加载，卸载即恢复原状。
 
@@ -20,7 +20,6 @@ Hermes Agent 本身是一个通用 Agent 框架，很多"用起来更安心"的�
 | --- | --- |
 | 不知道一句话该配给哪个模型，贵模型处理"在吗"很浪费 | 四档加权计分自动判定，问题难度和模型成本自动对齐 |
 | AI 代理连续报错，越错越乱还在硬着头皮往下跑 | 三态熔断器，连续失败自动跳闸，冷却后自动试探恢复 |
-| 每次开新对话都要重新交代一遍偏好 | 三层记忆（纠正/事实/短期），零配置零外部依赖，装上就自动记 |
 | 同样的错误反复踩，AI 每次都从头试错 | 抗体库查表，错误模式记下来，同一个坑不踩两次 |
 | 长任务没人盯着，AI 跳过规划直接动手，或者悄悄做了高危操作 | `/goal` 激活期间清单强制 + 高危操作换模型复核 |
 | 高危档位的回复到底有没有编造内容，肉眼看不出来 | 免费预检 + 付费交叉核验，仅在深度/真神档触发 |
@@ -29,7 +28,7 @@ Hermes Agent 本身是一个通用 Agent 框架，很多"用起来更安心"的�
 
 ## 快速开始
 
-安装完成后，直接正常使用 Hermes：所有路由、防线、记忆都是自动生效的，不需要学新命令。
+安装完成后，直接正常使用 Hermes：所有路由、防线都是自动生效的，不需要学新命令。
 
 看当前状态：
 
@@ -51,22 +50,19 @@ hermes phoenix-status
 | --- | --- | --- |
 | Router 路由分档 | 判断用哪个档位、哪个模型 | 闪答/日常/深度/真神四档加权计分自动判定 |
 | Guardrails 风险防线 | 防止失控烧钱或闯祸 | 三态熔断器 + 高危操作审批闸 + 候选链健康追踪 |
-| Memory 三层记忆 | 跨对话记住关键信息 | 纠正/事实/短期三层，关键词召回，零外部依赖 |
 | Selfheal 自愈系统 | 错误处理经验积累 | 抗体库查表，3次未解决自动升级，坏建议自动停用 |
 | Loop Guard 长任务守护 | `/goal` 激活期间的安全网 | 清单强制 + 高危操作换模型复核 |
 | Verify 幻觉核验 | 高危回复真实性核查 | 免费预检 + 付费交叉核验，通道故障自动降级放行 |
 | Fallback 欠费降级 | 主力模型不可用时兜底 | 配合 Hermes 原生 `fallback_model`，本地优先云端兜底 |
 | Version Check 版本核实 | 插件与 Hermes 版本兼容性 | 运行时自动比对，四种结果明确提示 |
 
-166 个自动化测试全程跟着功能走。完整技术拆解见 [不死鸟 Phoenix 完整技术文档](phoenix_v7/docs/)。
+155 个自动化测试全程跟着功能走。完整技术拆解见 [不死鸟 Phoenix 完整技术文档](phoenix_v7/docs/)。
 
 ## 视觉总览
 
 <img src="docs/images/01-router.png" alt="Router 路由分档" width="100%">
 
 <img src="docs/images/02-guardrails.png" alt="Guardrails 风险防线" width="100%">
-
-<img src="docs/images/03-memory.png" alt="Memory 三层记忆" width="100%">
 
 <img src="docs/images/04-selfheal.png" alt="Selfheal 自愈系统" width="100%">
 
@@ -111,11 +107,10 @@ phoenix/
 ├── phoenix_v7/          # 插件本体，会被复制到 ~/.hermes/plugins/
 │   ├── router/           # 路由分档引擎
 │   ├── guardrails/        # 熔断器/审批闸/成本记账
-│   ├── memory/            # 三层记忆
 │   ├── selfheal/          # 抗体库
 │   ├── loop/              # 长任务守护信号
 │   ├── verify/            # 幻觉核验
-│   ├── tests/              # 166 个自动化测试
+│   ├── tests/              # 155 个自动化测试
 │   ├── docs/                # 使用指南
 │   └── plugin.yaml          # 插件声明 + Hermes 版本兼容性字段
 ├── install.sh            # macOS / Linux 安装脚本
@@ -125,7 +120,7 @@ phoenix/
 
 ## 为什么值得信任
 
-- 166 条自动化测试全程跟着功能走，每次改动都要求全绿才能合并
+- 155 条自动化测试全程跟着功能走，每次改动都要求全绿才能合并
 - 至少三次真实生产事故驱动了关键安全设计（详见完整技术文档）
 - 两次重大重构都是先发现"自己重复造了 Hermes 已有的轮子"，再主动改用官方原生机制，不硬撑自建版本
 - 发布前主动加了版本兼容性自检机制，不指望用户自己去猜"这个版本能不能用"
