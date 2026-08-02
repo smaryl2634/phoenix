@@ -27,6 +27,7 @@ from .guardrails.tool_guard import (
 )
 from .guardrails.local_provider_guard import (
     is_turbofieldfare_target, check_local_provider_safety, TURBOFIELDFARE_PROVIDER,
+    is_turbofieldfare_supported_platform,
 )
 from .privacy.keywords import detect_sensitive
 from .privacy.warning import PRIVACY_WARNING_TEXT, append_privacy_warning  # noqa: F401 (PRIVACY_WARNING_TEXT re-exported for tests)
@@ -297,6 +298,11 @@ def _on_subagent_stop(**context) -> None:
 
 def _check_privacy_warning(current_text: str, *, session_id: str) -> str | None:
     if not session_id:
+        return None
+    if not is_turbofieldfare_supported_platform():
+        # turbofieldfare 是 Apple Silicon 专属（MLX 框架），Windows/Linux 用户
+        # 不可能真的切过去——真实事故：Windows 用户装完提醒后照做，发现这个
+        # provider 根本不存在，白白制造困惑。这类平台上不建议这条提醒。
         return None
     if not _privacy_flagged_by_session.get(session_id, False):
         return None

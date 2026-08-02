@@ -2,8 +2,8 @@
 
 <img src="docs/images/cover.png" alt="不死鸟 Phoenix" width="100%">
 
-[![Version](https://img.shields.io/badge/version-7.5.0-2563EB.svg?style=flat-square)](phoenix_v7/plugin.yaml)
-[![Tests](https://img.shields.io/badge/tests-198%2F198-A3FF12.svg?style=flat-square)](phoenix_v7/tests)
+[![Version](https://img.shields.io/badge/version-7.5.1-2563EB.svg?style=flat-square)](phoenix_v7/plugin.yaml)
+[![Tests](https://img.shields.io/badge/tests-203%2F203-A3FF12.svg?style=flat-square)](phoenix_v7/tests)
 [![License](https://img.shields.io/badge/license-CC%20BY--NC%204.0-16A34A.svg?style=flat-square)](LICENSE)
 
 > 装在 [Hermes Agent](https://github.com/NousResearch/hermes-agent) 上的插件。路由分档、风险防线、自愈系统，全程官方插件钩子接入，不改 Hermes 一行核心代码。
@@ -23,8 +23,8 @@ Hermes Agent 本身是一个通用 Agent 框架，很多"用起来更安心"的�
 | 同样的错误反复踩，AI 每次都从头试错 | 抗体库查表，错误模式记下来，同一个坑不踩两次 |
 | 长任务没人盯着，AI 跳过规划直接动手，或者悄悄做了高危操作 | `/goal` 激活期间清单强制 + 高危操作换模型复核 |
 | 高危档位的回复到底有没有编造内容，肉眼看不出来 | 免费预检 + 付费交叉核验，仅在深度/真神档触发 |
-| 主力模型欠费了，AI 直接罢工 | 本地 26B 模型优先兜底，云端免费档二级兜底 |
-| 聊到手机号/身份证/密码这类敏感信息，不确定要不要发去云端 | 命中敏感词后事后提醒，引导手动切到本地模型处理 |
+| 主力模型欠费了，AI 直接罢工 | 本地 26B 模型优先兜底（仅 macOS），云端免费档二级兜底 |
+| 聊到手机号/身份证/密码这类敏感信息，不确定要不要发去云端 | 命中敏感词后事后提醒，引导手动切到本地模型处理（仅 macOS） |
 | 装的这版插件到底跟你电脑上的 Hermes 版本合不合 | 运行时自动比对，明确告诉你"合不合" |
 
 ## 快速开始
@@ -58,7 +58,7 @@ hermes phoenix-status
 | Privacy 隐私路由 | 敏感内容处理提醒 | 命中敏感词后事后提醒，引导手动切到本地模型，同会话不重复提醒 |
 | Version Check 版本核实 | 插件与 Hermes 版本兼容性 | 运行时自动比对，四种结果明确提示 |
 
-198 个自动化测试全程跟着功能走。完整技术拆解见 [不死鸟 Phoenix 完整技术文档](phoenix_v7/docs/)。
+203 个自动化测试全程跟着功能走。完整技术拆解见 [不死鸟 Phoenix 完整技术文档](phoenix_v7/docs/)。
 
 ## 视觉总览
 
@@ -115,7 +115,7 @@ phoenix/
 │   ├── loop/              # 长任务守护信号
 │   ├── verify/            # 幻觉核验
 │   ├── privacy/            # 隐私敏感词检测与本地模型切换提醒
-│   ├── tests/              # 198 个自动化测试
+│   ├── tests/              # 203 个自动化测试
 │   ├── docs/                # 使用指南
 │   └── plugin.yaml          # 插件声明 + Hermes 版本兼容性字段
 ├── install.sh            # macOS / Linux 安装脚本
@@ -125,7 +125,7 @@ phoenix/
 
 ## 为什么值得信任
 
-- 198 条自动化测试全程跟着功能走，每次改动都要求全绿才能合并
+- 203 条自动化测试全程跟着功能走，每次改动都要求全绿才能合并
 - 至少三次真实生产事故驱动了关键安全设计（详见完整技术文档）
 - 两次重大重构都是先发现"自己重复造了 Hermes 已有的轮子"，再主动改用官方原生机制，不硬撑自建版本
 - 发布前主动加了版本兼容性自检机制，不指望用户自己去猜"这个版本能不能用"

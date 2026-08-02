@@ -29,6 +29,19 @@ def test_check_privacy_warning_appends_when_flagged_and_not_local_and_unwarned()
     assert "s1" in phoenix_v7._privacy_warned_sessions
 
 
+def test_check_privacy_warning_skips_on_unsupported_platform(monkeypatch):
+    # 真实事故：Windows 用户装完 v7.5.0 看到这条提醒引导他们 /model turbofieldfare，
+    # 但这个 provider 在非 Mac 平台根本不存在（turbofieldfare 是 MLX/Apple Silicon
+    # 专属）。非 Mac 平台上这条提醒不该出现，即使敏感词命中、即使还没提醒过。
+    _reset_state()
+    monkeypatch.setattr(phoenix_v7, "is_turbofieldfare_supported_platform", lambda: False)
+    phoenix_v7._privacy_flagged_by_session["s_win"] = True
+    phoenix_v7._current_provider_by_session["s_win"] = "nous"
+    result = phoenix_v7._check_privacy_warning("原始回复内容", session_id="s_win")
+    assert result is None
+    assert "s_win" not in phoenix_v7._privacy_warned_sessions
+
+
 def test_check_privacy_warning_skips_when_not_flagged():
     _reset_state()
     phoenix_v7._privacy_flagged_by_session["s2"] = False

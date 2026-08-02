@@ -6,6 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from guardrails.local_provider_guard import (
     TURBOFIELDFARE_PROVIDER,
     SAFE_TOKEN_LIMIT,
+    is_turbofieldfare_supported_platform,
     is_turbofieldfare_target,
     estimate_tokens,
     check_local_provider_safety,
@@ -14,6 +15,24 @@ from guardrails.local_provider_guard import (
 
 def test_turbofieldfare_provider_constant():
     assert TURBOFIELDFARE_PROVIDER == "turbofieldfare"
+
+
+def test_is_turbofieldfare_supported_platform_true_on_macos():
+    assert is_turbofieldfare_supported_platform("Darwin") is True
+
+
+def test_is_turbofieldfare_supported_platform_false_on_windows():
+    assert is_turbofieldfare_supported_platform("Windows") is False
+
+
+def test_is_turbofieldfare_supported_platform_false_on_linux():
+    assert is_turbofieldfare_supported_platform("Linux") is False
+
+
+def test_is_turbofieldfare_supported_platform_defaults_to_real_platform_system():
+    import platform as _platform
+
+    assert is_turbofieldfare_supported_platform() == (_platform.system() == "Darwin")
 
 
 def test_is_turbofieldfare_target_matches_by_provider():

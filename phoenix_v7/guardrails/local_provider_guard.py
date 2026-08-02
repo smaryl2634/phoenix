@@ -11,12 +11,24 @@ check_local_provider_safety() 返回 False 时，调用方只能记日志提醒�
 真的把请求改道到别的 provider。"""
 from __future__ import annotations
 
+import platform
+
 TURBOFIELDFARE_PROVIDER = "turbofieldfare"
 
 # 4096 声明 context_length 打八折留余量，不是拍脑袋的数字。
 SAFE_TOKEN_LIMIT = 3277
 
 _CHARS_PER_TOKEN = 4
+
+
+def is_turbofieldfare_supported_platform(system_name: str | None = None) -> bool:
+    """turbofieldfare 本地引擎是基于苹果 MLX 框架编译的，只能跑 Apple Silicon。
+    Windows/Linux 用户装了不死鸟也不可能真的用上这个功能——真实事故：Windows
+    用户装完 v7.5.0 看到隐私提醒引导他们运行 /model turbofieldfare，跟着做了
+    但这个 provider 在他们的平台上根本不可能存在，白白制造困惑。任何要"建议
+    用户切到本地模型"的地方，先过这道判断。"""
+    name = system_name if system_name is not None else platform.system()
+    return name == "Darwin"
 
 
 def is_turbofieldfare_target(model: str, provider: str) -> bool:
