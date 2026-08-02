@@ -3,7 +3,13 @@ $ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SourceDir = Join-Path $ScriptDir "phoenix_v7"
-$HermesDir = Join-Path $HOME ".hermes"
+if ($env:HERMES_HOME) {
+    $HermesDir = $env:HERMES_HOME
+} elseif ($env:LOCALAPPDATA) {
+    $HermesDir = Join-Path $env:LOCALAPPDATA "hermes"
+} else {
+    $HermesDir = Join-Path $HOME "AppData\Local\hermes"
+}
 $PluginsDir = Join-Path $HermesDir "plugins"
 $TargetDir = Join-Path $PluginsDir "phoenix_v7"
 

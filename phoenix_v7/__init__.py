@@ -9,6 +9,8 @@ import logging
 import yaml
 from pathlib import Path
 
+from hermes_constants import get_hermes_home
+
 from .router.metis_core import classify
 from .router.config import load_tier_overrides, write_enabled, resolve_candidate
 from .guardrails.cost_monitor import CostMonitor
@@ -66,7 +68,7 @@ _error_processor = ErrorProcessor(antibody=_antibody)
 # 调用"的设计原则）。
 _pending_loop_approvals: dict[str, bool] = {}
 
-_HERMES_CONFIG_PATH = Path.home() / ".hermes" / "config.yaml"
+_HERMES_CONFIG_PATH = get_hermes_home() / "config.yaml"
 
 
 def _load_primary_provider(path: Path | None = None) -> str:

@@ -74,7 +74,7 @@ def evaluate(
                 "phoenix_v7: 熔断器已跳闸，暂停工具调用。低风险工具（"
                 + "、".join(sorted(SAFE_TOOL_WHITELIST))
                 + "）不受影响。等待熔断自动恢复，或检查 "
-                "~/.hermes/plugins/phoenix_v7/state/circuit_breaker.json 状态。"
+                "不死鸟插件 state 目录下的 circuit_breaker.json 状态。"
             ),
         }
     if tier in _HIGH_TIERS:

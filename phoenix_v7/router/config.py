@@ -1,4 +1,4 @@
-"""tier_overrides 配置文件读取，默认路径 ~/.hermes/plugins/phoenix_v7/config/tiers.json.
+"""tier_overrides 配置文件读取，默认路径是不死鸟插件目录下的 config/tiers.json.
 
 2026-07-28状态说明：当前这份配置是空字典 {}，是刻意留空，不是漏填。含义是——
 classify()/tier_to_model() 这套"判断该用哪个档位"的逻辑照常运行、照常在日志里打印

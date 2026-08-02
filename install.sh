@@ -3,7 +3,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE_DIR="$SCRIPT_DIR/phoenix_v7"
-HERMES_DIR="$HOME/.hermes"
+if [ -n "${HERMES_HOME:-}" ]; then
+  HERMES_DIR="$HERMES_HOME"
+else
+  HERMES_DIR="$HOME/.hermes"
+fi
 PLUGINS_DIR="$HERMES_DIR/plugins"
 TARGET_DIR="$PLUGINS_DIR/phoenix_v7"
 
