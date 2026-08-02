@@ -1,8 +1,14 @@
 import sys
 from pathlib import Path
 
+# Bootstrap: hermes_constants itself needs Path.home() since get_hermes_home()
+# isn't importable yet at this point — this one line is exempt from the
+# get_hermes_home() rule for that reason.
 sys.path.insert(0, str(Path.home() / ".hermes" / "hermes-agent"))
-sys.path.insert(0, str(Path.home() / ".hermes" / "plugins"))
+from hermes_constants import get_hermes_home
+
+sys.path.insert(0, str(get_hermes_home() / "hermes-agent"))
+sys.path.insert(0, str(get_hermes_home() / "plugins"))
 
 from phoenix_v7.guardrails import loop_signal
 

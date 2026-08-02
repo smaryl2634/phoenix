@@ -25,6 +25,11 @@ from .guardrails.tool_guard import (
     evaluate as _evaluate_tool_guard,
     evaluate_loop_checklist_gate as _evaluate_loop_checklist_gate,
 )
+from .guardrails.local_provider_guard import (
+    is_turbofieldfare_target, check_local_provider_safety, TURBOFIELDFARE_PROVIDER,
+)
+from .privacy.keywords import detect_sensitive
+from .privacy.warning import PRIVACY_WARNING_TEXT, append_privacy_warning  # noqa: F401 (PRIVACY_WARNING_TEXT re-exported for tests)
 from agent.auxiliary_client import get_text_auxiliary_client
 from .selfheal.antibody import AntibodyLibrary
 from .selfheal.error_processor import ErrorProcessor
@@ -44,6 +49,19 @@ _last_tier_by_session: dict[str, str] = {}
 # （安全地退化成"永远选第一个候选"，不会锁死用户，但功能是死的）。这份字典就是记录
 # "这个session这一轮真正会打给谁"，_record_usage/_record_api_error 优先读它。
 _resolved_model_by_session: dict[str, str] = {}
+
+# session_id -> 这次请求实际使用的 provider（_route() 每次调用都刷新，包括早退
+# 路径）。transform_llm_output 钩子的 context 不带 provider 字段（已核实
+# turn_finalizer.py 源码），只能靠这份缓存判断"这个session现在是不是在
+# turbofieldfare上"。
+_current_provider_by_session: dict[str, str] = {}
+
+# session_id -> 这一轮 messages 是否命中隐私敏感词（_route() 每次调用都刷新，
+# 包括早退路径，避免 transform_llm_output 侧读到陈旧值）。
+_privacy_flagged_by_session: dict[str, bool] = {}
+
+# 已经提醒过隐私切换的 session 集合，避免同一会话反复提醒（见 Task 4）。
+_privacy_warned_sessions: set[str] = set()
 
 _STATE_DIR = get_hermes_home() / "phoenix_v7_state"
 # 2026-07-28修正：_cost_monitor 不再用来挡任何工具调用（原来 is_over_limit() 基于
@@ -97,6 +115,31 @@ def _load_primary_provider(path: Path | None = None) -> str:
 
 _primary_provider = _load_primary_provider()
 
+
+def _load_fallback_chain(path: Path | None = None) -> list[dict]:
+    """读取 Hermes 根配置 fallback_model 链，跟 _load_primary_provider() 是同一种
+    直接读 YAML 文件的模式。fallback_model 可以是单个 dict 或 dict 列表（chain），
+    这里统一归一化成列表。读取失败一律返回空列表，调用方把空列表当"未配置"处理。"""
+    target = path or _HERMES_CONFIG_PATH
+    if not target.exists():
+        return []
+    try:
+        data = yaml.safe_load(target.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    if not isinstance(data, dict):
+        return []
+    fb = data.get("fallback_model")
+    if isinstance(fb, dict):
+        fb = [fb]
+    if not isinstance(fb, list):
+        return []
+    return [
+        {"provider": entry["provider"], "model": entry["model"]}
+        for entry in fb
+        if isinstance(entry, dict) and "provider" in entry and "model" in entry
+    ]
+
 _PLUGIN_YAML_PATH = Path(__file__).resolve().parent / "plugin.yaml"
 
 
@@ -119,35 +162,64 @@ def _read_verified_hermes_version(path: Path | None = None) -> str | None:
 
 def _route(request: dict, **context) -> dict | None:
     current_provider = context.get("provider") or ""
-    if _primary_provider and current_provider and current_provider != _primary_provider:
-        # 已经在 Hermes 的备用线路上，不死鸟不插手。这里提前 return 会跳过下面
-        # _last_tier_by_session 的写入——是故意的：_guard_tool() 读不到 tier 时按
-        # tier=None 处理，不会命中任何高危档位审批门槛，在降级状态下这是期望行为，
-        # 不是遗漏。
-        return None
-    messages = request.get("messages") or context.get("conversation_history") or []
-    tier = classify(messages)
     session_id = context.get("session_id", "")
+    messages = request.get("messages") or context.get("conversation_history") or []
     if session_id:
-        _last_tier_by_session[session_id] = tier
+        _current_provider_by_session[session_id] = current_provider
+        _privacy_flagged_by_session[session_id] = detect_sensitive(messages)
 
     default_model = request.get("model", "")
-    enabled, overrides = load_tier_overrides()
-    if not enabled:
-        if session_id:
-            _resolved_model_by_session[session_id] = default_model
-        return None  # 手动挡：档位判断/状态记录照常，但不介入模型选择
+    # 已经在 Hermes 的备用线路上时，不死鸟不插手模型选择——tier 判定/_last_tier_by_session
+    # /_resolved_model_by_session 全部跳过是故意的：_guard_tool() 读不到 tier 时按
+    # tier=None 处理，不会命中任何高危档位审批门槛，在降级状态下这是期望行为，不是遗漏。
+    on_primary_route = not (
+        _primary_provider and current_provider and current_provider != _primary_provider
+    )
 
-    tier_override = overrides.get(tier)
-    new_model = resolve_candidate(tier_override, default_model, _model_health)
-    if session_id:
-        _resolved_model_by_session[session_id] = new_model
-    if new_model == default_model:
-        return None  # 没变化就不用返回替换，减少 trace 噪音
+    tier = None
+    new_model = default_model
+    if on_primary_route:
+        tier = classify(messages)
+        if session_id:
+            _last_tier_by_session[session_id] = tier
+
+        enabled, overrides = load_tier_overrides()
+        if enabled:
+            tier_override = overrides.get(tier)
+            new_model = resolve_candidate(tier_override, default_model, _model_health)
+        if session_id:
+            _resolved_model_by_session[session_id] = new_model
+
     new_request = dict(request)
-    new_request["model"] = new_model
-    logger.info("phoenix_v7 router: tier=%s model %s -> %s", tier, default_model, new_model)
-    return {"request": new_request, "source": "phoenix_v7", "reason": f"tier={tier}"}
+    changed = False
+
+    if on_primary_route and new_model != default_model:
+        new_request["model"] = new_model
+        logger.info("phoenix_v7 router: tier=%s model %s -> %s", tier, default_model, new_model)
+        changed = True
+
+    # turbofieldfare 安全阀刻意放在上面"非主线路提前跳过"的判断之外——现实中触发这条
+    # 路径的主要场景恰恰是 Hermes 原生 fallback_model 链把请求转去本地 turbofieldfare
+    # （config.yaml 的 fallback_model 链已经指向 turbofieldfare/gemma-4-26b-a4b-it，
+    # 见 docs/superpowers/specs/2026-08-02-local-provider-turbofieldfare-design.md），
+    # 这时 current_provider 天然不等于 _primary_provider，如果把这段检查也挂在
+    # on_primary_route 分支里，这道阀门在真实生产场景里就永远不会生效。
+    if is_turbofieldfare_target(new_model, current_provider):
+        safe, reason = check_local_provider_safety(messages)
+        if not safe:
+            logger.warning(
+                "phoenix_v7 local-guard: 请求发给 turbofieldfare 但可能不安全(%s)——"
+                "此层无法改道，仅记录", reason,
+            )
+        if new_request.get("stream"):
+            new_request["stream"] = False
+            logger.info("phoenix_v7 local-guard: 强制 turbofieldfare 请求 stream=False")
+            changed = True
+
+    if not changed:
+        return None  # 没变化就不用返回替换，减少 trace 噪音
+    reason = f"tier={tier}" if tier is not None else "local-guard"
+    return {"request": new_request, "source": "phoenix_v7", "reason": reason}
 
 
 def _guard_tool(tool_name: str, args: dict, **context) -> dict | None:
@@ -223,18 +295,47 @@ def _on_subagent_stop(**context) -> None:
         )
 
 
-def _check_hallucination(**context) -> str | None:
+def _check_privacy_warning(current_text: str, *, session_id: str) -> str | None:
+    if not session_id:
+        return None
+    if not _privacy_flagged_by_session.get(session_id, False):
+        return None
+    if _current_provider_by_session.get(session_id, "") == TURBOFIELDFARE_PROVIDER:
+        return None
+    if session_id in _privacy_warned_sessions:
+        return None
+    _privacy_warned_sessions.add(session_id)
+    return append_privacy_warning(current_text)
+
+
+def _transform_output(**context) -> str | None:
+    """transform_llm_output 分发函数：Hermes 只认第一个返回非空字符串的钩子，第二个
+    独立注册的钩子返回值会被静默丢弃（已核实 turn_finalizer.py 源码）。幻觉核验和
+    隐私事后提醒都要生效，所以必须合并进同一个函数里顺序调用、在同一个字符串上
+    逐步叠加变更，而不是分别注册两个 transform_llm_output 钩子。"""
     response_text = context.get("response_text") or ""
     if not response_text:
         return None
     session_id = context.get("session_id", "")
     tier = _last_tier_by_session.get(session_id)
-    result = _evaluate_hallucination(
+
+    current = response_text
+    changed = False
+
+    hallucination_result = _evaluate_hallucination(
         response_text, tier, lambda: get_text_auxiliary_client(task="hallucination_check")
     )
-    if result is not None:
+    if hallucination_result is not None:
         logger.info("phoenix_v7 verify: hallucination check flagged a response, tier=%s", tier)
-    return result
+        current = hallucination_result
+        changed = True
+
+    privacy_result = _check_privacy_warning(current, session_id=session_id)
+    if privacy_result is not None:
+        current = privacy_result
+        changed = True
+
+    return current if changed else None
 
 
 def _resolved_model_for(context: dict) -> str | None:
@@ -324,6 +425,12 @@ def _handle_status_cli(args) -> None:
     breaker_state = _breaker.state()
     daily_cost = _cost_monitor.daily_total()
     antibody_stats = _antibody.stats()
+    fallback_chain = _load_fallback_chain()
+    if fallback_chain:
+        chain_desc = " → ".join(f"{e['provider']}/{e['model']}" for e in fallback_chain)
+        fallback_line = f"  欠费兜底链: {chain_desc}"
+    else:
+        fallback_line = "  欠费兜底链: 未配置"
 
     running_version = _read_hermes_version()
     verified_version = _read_verified_hermes_version()
@@ -355,7 +462,8 @@ def _handle_status_cli(args) -> None:
         f"  {hermes_version_line}\n"
         f"  今日花费(估算，非真实计费): ${daily_cost:.4f}\n"
         f"  抗体库: {antibody_stats['total_patterns']} 个已知模式"
-        f"（{antibody_stats['disabled_patterns']} 个已停用）"
+        f"（{antibody_stats['disabled_patterns']} 个已停用）\n"
+        f"{fallback_line}"
     )
 
 
@@ -366,7 +474,7 @@ def register(ctx) -> None:
     ctx.register_hook("post_api_request", _record_usage)
     ctx.register_hook("api_request_error", _record_api_error)
     ctx.register_hook("subagent_stop", _on_subagent_stop)
-    ctx.register_hook("transform_llm_output", _check_hallucination)
+    ctx.register_hook("transform_llm_output", _transform_output)
     ctx.register_middleware("tool_execution", _heal)
     ctx.register_cli_command(
         "phoenix-router",
