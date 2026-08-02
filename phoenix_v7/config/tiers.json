@@ -1,0 +1,9 @@
+{
+  "enabled": true,
+  "tiers": {
+    "l0_fast": "stepfun/step-3.7-flash:free",
+    "l1_daily": "google/gemini-3.5-flash",
+    "l2_deep": "anthropic/claude-sonnet-5",
+    "l3_critical": "anthropic/claude-opus-5"
+  }
+}
