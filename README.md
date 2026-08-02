@@ -133,7 +133,6 @@ phoenix/
 ## 作者与支持
 
 作者：**小爷** · 懂商业的 AI 野生 UP 主 / Hermes Agent·不死鸟 AI 架构原创作者
-抖音 / 小红书 / 视频号：**小爷开启疯狂模式**
 
 <img src="docs/wechat-qrcode.jpg" alt="微信二维码" width="240">
 
