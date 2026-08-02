@@ -1,5 +1,7 @@
 # 不死鸟 Phoenix
 
+<img src="docs/images/cover.png" alt="不死鸟 Phoenix" width="100%">
+
 [![Version](https://img.shields.io/badge/version-7.4.4-2563EB.svg?style=flat-square)](phoenix_v7/plugin.yaml)
 [![Tests](https://img.shields.io/badge/tests-166%2F166-A3FF12.svg?style=flat-square)](phoenix_v7/tests)
 [![License](https://img.shields.io/badge/license-CC%20BY--NC%204.0-16A34A.svg?style=flat-square)](LICENSE)
@@ -8,7 +10,7 @@
 
 **支持：Hermes Agent。** 全程通过官方插件系统加载，卸载即恢复原状。
 
-[解决什么问题](#不死鸟解决什么问题) · [快速开始](#快速开始) · [能力一览](#能力一览) · [安装](#安装) · [项目结构](#项目结构)
+[解决什么问题](#不死鸟解决什么问题) · [快速开始](#快速开始) · [能力一览](#能力一览) · [视觉总览](#视觉总览) · [安装](#安装) · [项目结构](#项目结构)
 
 ## 不死鸟解决什么问题
 
@@ -57,6 +59,24 @@ hermes phoenix-status
 | Version Check 版本核实 | 插件与 Hermes 版本兼容性 | 运行时自动比对，四种结果明确提示 |
 
 166 个自动化测试全程跟着功能走。完整技术拆解见 [不死鸟 Phoenix 完整技术文档](phoenix_v7/docs/)。
+
+## 视觉总览
+
+<img src="docs/images/01-router.png" alt="Router 路由分档" width="100%">
+
+<img src="docs/images/02-guardrails.png" alt="Guardrails 风险防线" width="100%">
+
+<img src="docs/images/03-memory.png" alt="Memory 三层记忆" width="100%">
+
+<img src="docs/images/04-selfheal.png" alt="Selfheal 自愈系统" width="100%">
+
+<img src="docs/images/05-loopguard.png" alt="Loop Guard 长任务守护" width="100%">
+
+<img src="docs/images/06-verify.png" alt="Verify 幻觉核验" width="100%">
+
+<img src="docs/images/07-fallback.png" alt="Fallback 欠费降级" width="100%">
+
+<img src="docs/images/08-comparison.png" alt="全景对比：纯 Hermes vs 不死鸟" width="100%">
 
 ## 安装
 
