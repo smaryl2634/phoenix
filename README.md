@@ -78,7 +78,9 @@ hermes phoenix-status
 
 ### 下载
 
-在 [Releases](../../releases) 或本仓库首页点 **Code → Download ZIP**，解压到任意位置。
+⚠️ 请从 **[Releases](../../releases/latest)** 页面下载安装包（几百 KB，纯代码）。**不要**点仓库首页的绿色 "Code → Download ZIP" 按钮——那下载的是整个仓库源码（含展示图片等资源，十几 MB），不是安装包，装不了。
+
+解压到任意位置后继续下面的步骤。
 
 ### macOS / Linux
 
