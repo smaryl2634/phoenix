@@ -2,7 +2,7 @@
 
 <img src="docs/images/cover.png" alt="不死鸟 Phoenix" width="100%">
 
-[![Version](https://img.shields.io/badge/version-7.5.1-2563EB.svg?style=flat-square)](phoenix_v7/plugin.yaml)
+[![Version](https://img.shields.io/badge/version-7.5.2-2563EB.svg?style=flat-square)](phoenix_v7/plugin.yaml)
 [![Tests](https://img.shields.io/badge/tests-203%2F203-A3FF12.svg?style=flat-square)](phoenix_v7/tests)
 [![License](https://img.shields.io/badge/license-CC%20BY--NC%204.0-16A34A.svg?style=flat-square)](LICENSE)
 
