@@ -58,11 +58,24 @@ foreach ($junk in @("__pycache__", ".pytest_cache", "venv")) {
 
 Write-Host "`u2705 文件复制完成"
 Write-Host ""
-Write-Host "`u{1F50D} 校验安装结果："
-Write-Host "------------------------"
 
 $hermesCmd = Get-Command hermes -ErrorAction SilentlyContinue
 if ($hermesCmd) {
+    Write-Host "`u{1F50C} 启用插件："
+    Write-Host "------------------------"
+    # Hermes 要求用户安装的插件显式启用才会真正加载——只把文件复制到
+    # plugins/ 目录不够，第一次装的用户之前从未启用过 phoenix_v7，不调这一步
+    # 的话下面的 phoenix-status 校验必然失败（命令根本不存在），会被误报成
+    # "安装失败"。已装过旧版本再次运行本脚本时这一步是幂等的。老版本 Hermes
+    # 没有这个子命令时，不阻断安装，只提示用户自己手动启用。
+    hermes plugins enable phoenix_v7 --no-allow-tool-override
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "`u26A0`uFE0F  自动启用失败（可能是较旧版本的 Hermes 没有这个子命令），"
+        Write-Host "   请手动运行：hermes plugins enable phoenix_v7"
+    }
+    Write-Host ""
+    Write-Host "`u{1F50D} 校验安装结果："
+    Write-Host "------------------------"
     hermes phoenix-status
     if ($LASTEXITCODE -ne 0) {
         Write-Host ""
@@ -70,7 +83,9 @@ if ($hermesCmd) {
         exit 1
     }
 } else {
-    Write-Host "`u26A0`uFE0F  找不到 hermes 命令，无法自动校验。请手动运行：hermes phoenix-status"
+    Write-Host "`u26A0`uFE0F  找不到 hermes 命令，无法自动启用/校验。请手动运行："
+    Write-Host "   hermes plugins enable phoenix_v7"
+    Write-Host "   hermes phoenix-status"
 }
 
 Write-Host ""
@@ -81,7 +96,8 @@ Write-Host "------------------------"
 Write-Host "装完不用学新命令，正常用 Hermes 就行，下面这些是不死鸟自动生效/可选用的部分："
 Write-Host ""
 Write-Host "  hermes phoenix-status       随时查看当前状态（路由/熔断/花费/抗体库/兜底链）"
-Write-Host "  hermes phoenix-router on/off  开关自动路由换模型（默认开，只判断不切也可以关掉）"
+Write-Host "  hermes phoenix-router on/off  开关自动路由换模型（默认关，只判断档位不切模型，"
+Write-Host "                              需要自己配置好档位对应的模型后再开启）"
 Write-Host "  /goal 你的任务描述           长任务模式，Hermes 原生命令，不死鸟自动接管清单强制"
 Write-Host "                              + 高危操作换模型复核"
 Write-Host ""

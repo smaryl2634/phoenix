@@ -2,7 +2,7 @@
 
 <img src="docs/images/cover.png" alt="不死鸟 Phoenix" width="100%">
 
-[![Version](https://img.shields.io/badge/version-7.5.2-2563EB.svg?style=flat-square)](phoenix_v7/plugin.yaml)
+[![Version](https://img.shields.io/badge/version-7.5.3-2563EB.svg?style=flat-square)](phoenix_v7/plugin.yaml)
 [![Tests](https://img.shields.io/badge/tests-203%2F203-A3FF12.svg?style=flat-square)](phoenix_v7/tests)
 [![License](https://img.shields.io/badge/license-CC%20BY--NC%204.0-16A34A.svg?style=flat-square)](LICENSE)
 
@@ -98,17 +98,17 @@ cd 解压后的文件夹
 .\install.ps1
 ```
 
-安装脚本会自动检测本机是否已装 Hermes Agent、把插件复制到 `~/.hermes/plugins/phoenix_v7/`、并自动跑一遍 `hermes phoenix-status` 让你看到安装结果。已安装旧版本会自动备份，不会覆盖丢失。
+安装脚本会自动检测本机是否已装 Hermes Agent、启用插件、并自动跑一遍 `hermes phoenix-status` 让你看到安装结果。已安装旧版本会自动备份，不会覆盖丢失。插件复制到的位置是 Hermes 的 Home 目录（macOS/Linux 默认 `~/.hermes/plugins/phoenix_v7/`，Windows 默认 `%LOCALAPPDATA%\hermes\plugins\phoenix_v7\`，设了 `HERMES_HOME` 环境变量的话以那个为准，可以用 `hermes config path` 查看当前实际路径）。
 
 ### 卸载
 
-删除 `~/.hermes/plugins/phoenix_v7/` 即可，不影响 Hermes 本体，也不会残留任何对 Hermes 核心文件的修改。
+删除插件目录即可（路径同上），不影响 Hermes 本体，也不会残留任何对 Hermes 核心文件的修改。如果想连同不死鸟的历史数据（抗体库、成本记录等）一起删，同一个 Home 目录下还有一个 `phoenix_v7_state/` 目录也要删掉；只想清插件代码、保留这些数据的话，别删这个目录。
 
 ## 项目结构
 
 ```text
 phoenix/
-├── phoenix_v7/          # 插件本体，会被复制到 ~/.hermes/plugins/
+├── phoenix_v7/          # 插件本体，会被复制到 Hermes Home 下的 plugins/ 目录
 │   ├── router/           # 路由分档引擎
 │   ├── guardrails/        # 熔断器/审批闸/成本记账
 │   ├── selfheal/          # 抗体库

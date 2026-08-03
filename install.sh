@@ -55,17 +55,34 @@ rm -rf "$TARGET_DIR/__pycache__" "$TARGET_DIR/.pytest_cache" "$TARGET_DIR/venv" 
 
 echo "✅ 文件复制完成"
 echo ""
-echo "🔍 校验安装结果："
-echo "------------------------"
 
 if command -v hermes >/dev/null 2>&1; then
+  echo "🔌 启用插件："
+  echo "------------------------"
+  # Hermes 要求用户安装的插件显式启用才会真正加载——只把文件复制到
+  # plugins/ 目录不够，第一次装的用户之前从未启用过 phoenix_v7，不调这一步
+  # 的话下面的 phoenix-status 校验必然失败（命令根本不存在），会被误报成
+  # "安装失败"。已装过旧版本再次运行本脚本时这一步是幂等的（Hermes 自己
+  # 处理"已经启用"的情况，不会报错）。老版本 Hermes 没有这个子命令时，
+  # 不阻断安装，只提示用户自己手动启用。
+  if hermes plugins enable phoenix_v7 --no-allow-tool-override; then
+    :
+  else
+    echo "⚠️  自动启用失败（可能是较旧版本的 Hermes 没有这个子命令），"
+    echo "   请手动运行：hermes plugins enable phoenix_v7"
+  fi
+  echo ""
+  echo "🔍 校验安装结果："
+  echo "------------------------"
   hermes phoenix-status || {
     echo ""
     echo "⚠️  hermes phoenix-status 执行失败，请检查上面的报错信息。"
     exit 1
   }
 else
-  echo "⚠️  找不到 hermes 命令，无法自动校验。请手动运行：hermes phoenix-status"
+  echo "⚠️  找不到 hermes 命令，无法自动启用/校验。请手动运行："
+  echo "   hermes plugins enable phoenix_v7"
+  echo "   hermes phoenix-status"
 fi
 
 echo ""
@@ -76,7 +93,8 @@ echo "------------------------"
 echo "装完不用学新命令，正常用 Hermes 就行，下面这些是不死鸟自动生效/可选用的部分："
 echo ""
 echo "  hermes phoenix-status       随时查看当前状态（路由/熔断/花费/抗体库/兜底链）"
-echo "  hermes phoenix-router on/off  开关自动路由换模型（默认开，只判断不切也可以关掉）"
+echo "  hermes phoenix-router on/off  开关自动路由换模型（默认关，只判断档位不切模型，"
+echo "                              需要自己配置好档位对应的模型后再开启）"
 echo "  /goal 你的任务描述           长任务模式，Hermes 原生命令，不死鸟自动接管清单强制"
 echo "                              + 高危操作换模型复核"
 echo ""
