@@ -76,6 +76,14 @@ hermes phoenix-status
 
 <img src="docs/images/07-fallback.png" alt="Fallback 欠费降级" width="100%">
 
+<img src="docs/images/09-checkpoint-reminder.png" alt="Checkpoint Reminder 存档点提醒" width="100%">
+
+<img src="docs/images/10-adaptive-approval.png" alt="Adaptive Approval 审批策略自适应" width="100%">
+
+<img src="docs/images/11-privacy.png" alt="Privacy 隐私路由" width="100%">
+
+<img src="docs/images/12-local-model-setup.png" alt="本地模型配置指南" width="100%">
+
 <img src="docs/images/08-comparison.png" alt="全景对比：纯 Hermes vs 不死鸟" width="100%">
 
 ## 安装
