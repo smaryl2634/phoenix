@@ -2,8 +2,8 @@
 
 <img src="docs/images/cover.png" alt="不死鸟 Phoenix" width="100%">
 
-[![Version](https://img.shields.io/badge/version-7.6.0-2563EB.svg?style=flat-square)](phoenix_v7/plugin.yaml)
-[![Tests](https://img.shields.io/badge/tests-257%2F257-A3FF12.svg?style=flat-square)](phoenix_v7/tests)
+[![Version](https://img.shields.io/badge/version-7.6.1-2563EB.svg?style=flat-square)](phoenix_v7/plugin.yaml)
+[![Tests](https://img.shields.io/badge/tests-252%2F252-A3FF12.svg?style=flat-square)](phoenix_v7/tests)
 [![License](https://img.shields.io/badge/license-CC%20BY--NC%204.0-16A34A.svg?style=flat-square)](LICENSE)
 
 > 装在 [Hermes Agent](https://github.com/NousResearch/hermes-agent) 上的插件。路由分档、风险防线、自愈系统，全程官方插件钩子接入，不改 Hermes 一行核心代码。

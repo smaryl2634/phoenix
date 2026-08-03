@@ -8,12 +8,12 @@ from pathlib import Path
 import yaml
 
 CHECKPOINT_REMINDER_TEXT = (
-    "🎮 检测到一次\"高危操作\"——就像游戏里踩雷之前的存档点，可惜这次你没存，\n"
-    "翻车了没法直接读档重来。\n\n"
+    "🎮 即将执行高危操作——就像游戏里踩雷之前的存档点，现在还来得及。\n\n"
     "Hermes 自带\"存档\"功能（读档就是 /rollback），默认是关的。开一下：\n"
     "  hermes chat --checkpoints\n\n"
     "开完之后，每次干\"删/改\"这种活之前会自动帮你偷偷存一档，\n"
-    "翻车了直接读档，不用自己肉身手动回滚。"
+    "翻车了直接读档，不用自己肉身手动回滚。\n\n"
+    "本次操作已放行，下次建议先开 checkpoints 再执行高危操作。"
 )
 
 _CHECKPOINT_FILE_TOOLS = {"write_file", "patch"}

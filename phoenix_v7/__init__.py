@@ -68,12 +68,6 @@ _privacy_flagged_by_session: dict[str, bool] = {}
 # 已经提醒过隐私切换的 session 集合，避免同一会话反复提醒（见 Task 4）。
 _privacy_warned_sessions: set[str] = set()
 
-# session_id -> 这一轮工具调用是否命中"该提醒开存档点"（_guard_tool() 每次
-# 命中高危工具调用时刷新；不做"清空"逻辑——同一 session 内哪怕上一轮标记过、
-# 这一轮没命中，也不需要主动清掉，因为 _check_checkpoint_reminder() 消费后
-# 会记入 _checkpoint_reminder_warned_sessions，不会重复触发）。
-_checkpoint_reminder_pending_by_session: dict[str, bool] = {}
-
 # 已经提醒过存档点的 session 集合，避免同一会话反复提醒。
 _checkpoint_reminder_warned_sessions: set[str] = set()
 
@@ -259,8 +253,15 @@ def _guard_tool(tool_name: str, args: dict, **context) -> dict | None:
         session_id
         and is_checkpoint_triggering_call(tool_name, args)
         and not is_checkpoints_enabled()
+        and session_id not in _checkpoint_reminder_warned_sessions
     ):
-        _checkpoint_reminder_pending_by_session[session_id] = True
+        _checkpoint_reminder_warned_sessions.add(session_id)
+        logger.info("phoenix_v7 checkpoint: pre-tool warning for tool=%s", tool_name)
+        return {
+            "action": "approve",
+            "message": CHECKPOINT_REMINDER_TEXT,
+            "rule_key": "phoenix_v7_checkpoint_reminder",
+        }
     tier = _last_tier_by_session.get(session_id)
     # Hermes 原生 cron 调度器给它触发的会话分配 "cron_<job_id>_..." 这样的
     # session_id（hermes-agent/cron/scheduler.py），不用不死鸟自己发明"这是调度
@@ -356,17 +357,6 @@ def _check_privacy_warning(current_text: str, *, session_id: str) -> str | None:
     return append_privacy_warning(current_text)
 
 
-def _check_checkpoint_reminder(current_text: str, *, session_id: str) -> str | None:
-    if not session_id:
-        return None
-    if not _checkpoint_reminder_pending_by_session.get(session_id, False):
-        return None
-    if session_id in _checkpoint_reminder_warned_sessions:
-        return None
-    _checkpoint_reminder_warned_sessions.add(session_id)
-    return f"{current_text}\n\n{CHECKPOINT_REMINDER_TEXT}"
-
-
 def _transform_output(**context) -> str | None:
     """transform_llm_output 分发函数：Hermes 只认第一个返回非空字符串的钩子，第二个
     独立注册的钩子返回值会被静默丢弃（已核实 turn_finalizer.py 源码）。幻觉核验和
@@ -392,11 +382,6 @@ def _transform_output(**context) -> str | None:
     privacy_result = _check_privacy_warning(current, session_id=session_id)
     if privacy_result is not None:
         current = privacy_result
-        changed = True
-
-    checkpoint_result = _check_checkpoint_reminder(current, session_id=session_id)
-    if checkpoint_result is not None:
-        current = checkpoint_result
         changed = True
 
     return current if changed else None

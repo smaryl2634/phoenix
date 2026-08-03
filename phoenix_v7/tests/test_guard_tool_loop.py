@@ -11,24 +11,40 @@ import phoenix_v7
 
 
 def test_guard_tool_flags_checkpoint_reminder_when_destructive_and_disabled(monkeypatch):
+    # 新行为（事前拦截）：checkpoints 未开 + 高危调用 -> _guard_tool 直接返回
+    # approve 指令并附带提醒文字，不再是"设 pending 标记，等回复生成完事后追加"。
     monkeypatch.setattr(phoenix_v7, "is_checkpoints_enabled", lambda: False)
-    phoenix_v7._checkpoint_reminder_pending_by_session.clear()
-    phoenix_v7._guard_tool("write_file", {"path": "/tmp/x.py"}, session_id="ckpt-1")
-    assert phoenix_v7._checkpoint_reminder_pending_by_session.get("ckpt-1") is True
+    phoenix_v7._checkpoint_reminder_warned_sessions.discard("ckpt-1")
+    result = phoenix_v7._guard_tool("write_file", {"path": "/tmp/x.py"}, session_id="ckpt-1")
+    assert result is not None
+    assert result["action"] == "approve"
+    assert result["rule_key"] == "phoenix_v7_checkpoint_reminder"
+    assert "即将执行高危操作" in result["message"]
 
 
 def test_guard_tool_does_not_flag_when_checkpoints_already_enabled(monkeypatch):
     monkeypatch.setattr(phoenix_v7, "is_checkpoints_enabled", lambda: True)
-    phoenix_v7._checkpoint_reminder_pending_by_session.clear()
-    phoenix_v7._guard_tool("write_file", {"path": "/tmp/x.py"}, session_id="ckpt-2")
-    assert phoenix_v7._checkpoint_reminder_pending_by_session.get("ckpt-2", False) is False
+    phoenix_v7._checkpoint_reminder_warned_sessions.discard("ckpt-2")
+    result = phoenix_v7._guard_tool("write_file", {"path": "/tmp/x.py"}, session_id="ckpt-2")
+    assert result is None or result.get("rule_key") != "phoenix_v7_checkpoint_reminder"
 
 
 def test_guard_tool_does_not_flag_for_non_destructive_call(monkeypatch):
     monkeypatch.setattr(phoenix_v7, "is_checkpoints_enabled", lambda: False)
-    phoenix_v7._checkpoint_reminder_pending_by_session.clear()
-    phoenix_v7._guard_tool("terminal", {"command": "ls -la"}, session_id="ckpt-3")
-    assert phoenix_v7._checkpoint_reminder_pending_by_session.get("ckpt-3", False) is False
+    phoenix_v7._checkpoint_reminder_warned_sessions.discard("ckpt-3")
+    result = phoenix_v7._guard_tool("terminal", {"command": "ls -la"}, session_id="ckpt-3")
+    assert result is None or result.get("rule_key") != "phoenix_v7_checkpoint_reminder"
+
+
+def test_guard_tool_checkpoint_reminder_only_fires_once_per_session(monkeypatch):
+    # 同一 session 里，第二次高危调用不该重复提醒（用 _checkpoint_reminder_warned_sessions
+    # 记住已经提醒过），否则每次写文件都刷一遍提醒文字，噪音太大。
+    monkeypatch.setattr(phoenix_v7, "is_checkpoints_enabled", lambda: False)
+    phoenix_v7._checkpoint_reminder_warned_sessions.discard("ckpt-4")
+    first = phoenix_v7._guard_tool("write_file", {"path": "/tmp/x.py"}, session_id="ckpt-4")
+    assert first is not None and first.get("rule_key") == "phoenix_v7_checkpoint_reminder"
+    second = phoenix_v7._guard_tool("write_file", {"path": "/tmp/y.py"}, session_id="ckpt-4")
+    assert second is None or second.get("rule_key") != "phoenix_v7_checkpoint_reminder"
 
 
 def _patch_goal(monkeypatch, *, active: bool, created_at: float = 100.0, seeded: bool = False):
@@ -139,6 +155,7 @@ def test_guard_tool_high_tier_todo_call_does_not_mark_seeded_until_allowed(monke
 
 def test_guard_tool_passes_trusted_true_when_bucket_trusted(monkeypatch):
     monkeypatch.setattr(phoenix_v7, "is_approval_trusted", lambda bucket_key: True)
+    monkeypatch.setattr(phoenix_v7, "is_checkpoints_enabled", lambda: True)  # 避免存档点提醒干扰
     monkeypatch.setattr(phoenix_v7, "_last_tier_by_session", {"trust-1": "l2_deep"})
     result = phoenix_v7._guard_tool("write_file", {"path": "/tmp/x.py"}, session_id="trust-1")
     assert result is None  # 信任够了，不该再触发确认
