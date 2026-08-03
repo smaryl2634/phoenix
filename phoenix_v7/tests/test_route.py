@@ -2,7 +2,10 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path.home() / ".hermes" / "hermes-agent"))
-sys.path.insert(0, str(Path.home() / ".hermes" / "plugins"))
+from hermes_constants import get_hermes_home
+
+sys.path.insert(0, str(get_hermes_home() / "hermes-agent"))
+sys.path.insert(0, str(get_hermes_home() / "plugins"))
 
 import phoenix_v7
 
@@ -193,3 +196,54 @@ def test_route_caches_provider_even_when_not_primary(monkeypatch):
     assert result is None  # 早退逻辑本身不变
     assert phoenix_v7._current_provider_by_session["test-cache-2"] == "turbofieldfare"
     assert phoenix_v7._privacy_flagged_by_session["test-cache-2"] is False
+
+
+
+def test_route_skips_rewrite_when_candidate_provider_mismatches_current(monkeypatch):
+    monkeypatch.setattr(phoenix_v7, "_primary_provider", "nous")
+    monkeypatch.setattr(
+        phoenix_v7, "load_tier_overrides",
+        lambda: (True, {"l2_deep": {"model": "smart-model", "provider": "openai"}}),
+    )
+    phoenix_v7._last_tier_by_session.clear()
+    request = {
+        "model": "default-model",
+        "messages": [{"role": "user", "content": "帮我设计一个分布式系统的一致性方案"}],
+    }
+    result = phoenix_v7._route(request, session_id="test-provider-mismatch", provider="nous")
+    assert result is None  # provider不一致，不应该发生任何改写
+    assert phoenix_v7._resolved_model_by_session["test-provider-mismatch"] == "default-model"
+
+
+def test_route_applies_rewrite_when_candidate_provider_matches_current(monkeypatch):
+    monkeypatch.setattr(phoenix_v7, "_primary_provider", "nous")
+    monkeypatch.setattr(
+        phoenix_v7, "load_tier_overrides",
+        lambda: (True, {"l2_deep": {"model": "smart-model", "provider": "nous"}}),
+    )
+    phoenix_v7._last_tier_by_session.clear()
+    request = {
+        "model": "default-model",
+        "messages": [{"role": "user", "content": "帮我设计一个分布式系统的一致性方案"}],
+    }
+    result = phoenix_v7._route(request, session_id="test-provider-match", provider="nous")
+    assert result is not None
+    assert result["request"]["model"] == "smart-model"
+
+
+def test_route_legacy_string_format_still_rewrites_regardless_of_provider(monkeypatch):
+    # 旧格式（纯字符串，没有provider字段）向后兼容：不因为缺 provider 信息就拦截，
+    # 否则所有存量配置这次升级后会集体失效。这是刻意的向后兼容决定，不是漏做校验。
+    monkeypatch.setattr(phoenix_v7, "_primary_provider", "some-provider")
+    monkeypatch.setattr(
+        phoenix_v7, "load_tier_overrides",
+        lambda: (True, {"l2_deep": "smart-model"}),
+    )
+    phoenix_v7._last_tier_by_session.clear()
+    request = {
+        "model": "default-model",
+        "messages": [{"role": "user", "content": "帮我设计一个分布式系统的一致性方案"}],
+    }
+    result = phoenix_v7._route(request, session_id="test-legacy-format", provider="some-provider")
+    assert result is not None
+    assert result["request"]["model"] == "smart-model"

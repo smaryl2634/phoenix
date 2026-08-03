@@ -2,8 +2,8 @@
 
 <img src="docs/images/cover.png" alt="不死鸟 Phoenix" width="100%">
 
-[![Version](https://img.shields.io/badge/version-7.5.3-2563EB.svg?style=flat-square)](phoenix_v7/plugin.yaml)
-[![Tests](https://img.shields.io/badge/tests-203%2F203-A3FF12.svg?style=flat-square)](phoenix_v7/tests)
+[![Version](https://img.shields.io/badge/version-7.6.0-2563EB.svg?style=flat-square)](phoenix_v7/plugin.yaml)
+[![Tests](https://img.shields.io/badge/tests-257%2F257-A3FF12.svg?style=flat-square)](phoenix_v7/tests)
 [![License](https://img.shields.io/badge/license-CC%20BY--NC%204.0-16A34A.svg?style=flat-square)](LICENSE)
 
 > 装在 [Hermes Agent](https://github.com/NousResearch/hermes-agent) 上的插件。路由分档、风险防线、自愈系统，全程官方插件钩子接入，不改 Hermes 一行核心代码。
@@ -57,8 +57,10 @@ hermes phoenix-status
 | Fallback 欠费降级 | 主力模型不可用时兜底 | 配合 Hermes 原生 `fallback_model`，本地 26B 模型优先、云端兜底 |
 | Privacy 隐私路由 | 敏感内容处理提醒 | 命中敏感词后事后提醒，引导手动切到本地模型，同会话不重复提醒 |
 | Version Check 版本核实 | 插件与 Hermes 版本兼容性 | 运行时自动比对，四种结果明确提示 |
+| Checkpoint Reminder 存档点提醒 | 高危操作前提醒开启回滚保护 | 检测到高危操作且 Hermes 自带 checkpoint 功能未开启时事后提醒，引导手动开启 |
+| Adaptive Approval 审批策略自适应 | 按历史批准记录动态调整确认频率 | 同类操作连续批准 3 次后不再重复确认，拒绝一次立即清零，永久高危类别不受信任影响 |
 
-203 个自动化测试全程跟着功能走。完整技术拆解见 [不死鸟 Phoenix 完整技术文档](phoenix_v7/docs/)。
+257 个自动化测试全程跟着功能走。完整技术拆解见 [不死鸟 Phoenix 完整技术文档](phoenix_v7/docs/)。
 
 ## 视觉总览
 
@@ -115,7 +117,7 @@ phoenix/
 │   ├── loop/              # 长任务守护信号
 │   ├── verify/            # 幻觉核验
 │   ├── privacy/            # 隐私敏感词检测与本地模型切换提醒
-│   ├── tests/              # 203 个自动化测试
+│   ├── tests/              # 257 个自动化测试
 │   ├── docs/                # 使用指南
 │   └── plugin.yaml          # 插件声明 + Hermes 版本兼容性字段
 ├── install.sh            # macOS / Linux 安装脚本
@@ -125,7 +127,7 @@ phoenix/
 
 ## 为什么值得信任
 
-- 203 条自动化测试全程跟着功能走，每次改动都要求全绿才能合并
+- 257 条自动化测试全程跟着功能走，每次改动都要求全绿才能合并
 - 至少三次真实生产事故驱动了关键安全设计（详见完整技术文档）
 - 两次重大重构都是先发现"自己重复造了 Hermes 已有的轮子"，再主动改用官方原生机制，不硬撑自建版本
 - 发布前主动加了版本兼容性自检机制，不指望用户自己去猜"这个版本能不能用"

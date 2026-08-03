@@ -29,6 +29,10 @@ from .guardrails.local_provider_guard import (
     is_turbofieldfare_target, check_local_provider_safety, TURBOFIELDFARE_PROVIDER,
     is_turbofieldfare_supported_platform,
 )
+from .guardrails.checkpoint_guard import (
+    CHECKPOINT_REMINDER_TEXT, is_checkpoint_triggering_call, is_checkpoints_enabled,
+)
+from .guardrails.approval_trust import is_approval_trusted, record_approval_outcome
 from .privacy.keywords import detect_sensitive
 from .privacy.warning import PRIVACY_WARNING_TEXT, append_privacy_warning  # noqa: F401 (PRIVACY_WARNING_TEXT re-exported for tests)
 from agent.auxiliary_client import get_text_auxiliary_client
@@ -63,6 +67,15 @@ _privacy_flagged_by_session: dict[str, bool] = {}
 
 # 已经提醒过隐私切换的 session 集合，避免同一会话反复提醒（见 Task 4）。
 _privacy_warned_sessions: set[str] = set()
+
+# session_id -> 这一轮工具调用是否命中"该提醒开存档点"（_guard_tool() 每次
+# 命中高危工具调用时刷新；不做"清空"逻辑——同一 session 内哪怕上一轮标记过、
+# 这一轮没命中，也不需要主动清掉，因为 _check_checkpoint_reminder() 消费后
+# 会记入 _checkpoint_reminder_warned_sessions，不会重复触发）。
+_checkpoint_reminder_pending_by_session: dict[str, bool] = {}
+
+# 已经提醒过存档点的 session 集合，避免同一会话反复提醒。
+_checkpoint_reminder_warned_sessions: set[str] = set()
 
 _STATE_DIR = get_hermes_home() / "phoenix_v7_state"
 # 2026-07-28修正：_cost_monitor 不再用来挡任何工具调用（原来 is_over_limit() 基于
@@ -187,7 +200,20 @@ def _route(request: dict, **context) -> dict | None:
         enabled, overrides = load_tier_overrides()
         if enabled:
             tier_override = overrides.get(tier)
-            new_model = resolve_candidate(tier_override, default_model, _model_health)
+            new_model, candidate_provider = resolve_candidate(
+                tier_override, default_model, _model_health
+            )
+            if (
+                candidate_provider is not None
+                and current_provider
+                and candidate_provider != current_provider
+            ):
+                logger.warning(
+                    "phoenix_v7 router: 候选模型 %s 声明属于 provider=%s，"
+                    "跟当前 provider=%s 不一致，跳过改写，保留原模型 %s",
+                    new_model, candidate_provider, current_provider, default_model,
+                )
+                new_model = default_model
         if session_id:
             _resolved_model_by_session[session_id] = new_model
 
@@ -229,6 +255,12 @@ def _guard_tool(tool_name: str, args: dict, **context) -> dict | None:
     # 次数，更可信）。_cost_monitor 仍然在 _record_usage 里被动记账，供用户自己回头看
     # 开销趋势，只是不再拿它挡任何东西。
     session_id = context.get("session_id", "")
+    if (
+        session_id
+        and is_checkpoint_triggering_call(tool_name, args)
+        and not is_checkpoints_enabled()
+    ):
+        _checkpoint_reminder_pending_by_session[session_id] = True
     tier = _last_tier_by_session.get(session_id)
     # Hermes 原生 cron 调度器给它触发的会话分配 "cron_<job_id>_..." 这样的
     # session_id（hermes-agent/cron/scheduler.py），不用不死鸟自己发明"这是调度
@@ -252,9 +284,19 @@ def _guard_tool(tool_name: str, args: dict, **context) -> dict | None:
             )
             return checklist_directive
 
+    command = args.get("command", "") if tool_name == "terminal" else ""
+    is_hardline = False
+    if command:
+        try:
+            from tools.approval import detect_hardline_command
+            is_hardline, _ = detect_hardline_command(command)
+        except Exception:
+            is_hardline = False
+    is_trusted = is_approval_trusted(tool_name) if tool_name else False
+
     directive = _evaluate_tool_guard(
         tier, _breaker.allow(), tool_name=tool_name, is_scheduled=is_scheduled,
-        is_loop_active=is_loop_active,
+        is_loop_active=is_loop_active, is_hardline=is_hardline, is_trusted=is_trusted,
     )
     if (
         directive is not None
@@ -314,6 +356,17 @@ def _check_privacy_warning(current_text: str, *, session_id: str) -> str | None:
     return append_privacy_warning(current_text)
 
 
+def _check_checkpoint_reminder(current_text: str, *, session_id: str) -> str | None:
+    if not session_id:
+        return None
+    if not _checkpoint_reminder_pending_by_session.get(session_id, False):
+        return None
+    if session_id in _checkpoint_reminder_warned_sessions:
+        return None
+    _checkpoint_reminder_warned_sessions.add(session_id)
+    return f"{current_text}\n\n{CHECKPOINT_REMINDER_TEXT}"
+
+
 def _transform_output(**context) -> str | None:
     """transform_llm_output 分发函数：Hermes 只认第一个返回非空字符串的钩子，第二个
     独立注册的钩子返回值会被静默丢弃（已核实 turn_finalizer.py 源码）。幻觉核验和
@@ -339,6 +392,11 @@ def _transform_output(**context) -> str | None:
     privacy_result = _check_privacy_warning(current, session_id=session_id)
     if privacy_result is not None:
         current = privacy_result
+        changed = True
+
+    checkpoint_result = _check_checkpoint_reminder(current, session_id=session_id)
+    if checkpoint_result is not None:
+        current = checkpoint_result
         changed = True
 
     return current if changed else None
@@ -408,6 +466,22 @@ def _heal(tool_name: str, args: dict, next_call, **context):
             _antibody.record_outcome(pattern, success=True)
             logger.info("phoenix_v7 selfheal: %s succeeded after hint, resetting failure streak for %r", tool_name, pattern)
         return result
+
+
+# guardrails/tool_guard.py::evaluate() 返回 approve 时传的 rule_key 格式是
+# "phoenix_v7_high_tier:{tool_name}"，这个 rule_key 最终会变成 Hermes 审批流程
+# 里的 pattern_key，格式固定加了 "plugin_rule:" 前缀（tools/approval.py::
+# request_tool_approval() 源码确认）。这个常量必须跟 rule_key 的格式保持同步。
+_APPROVAL_PATTERN_KEY_PREFIX = "plugin_rule:phoenix_v7_high_tier:"
+
+
+def _on_approval_response(**context) -> None:
+    pattern_key = context.get("pattern_key") or ""
+    if not pattern_key.startswith(_APPROVAL_PATTERN_KEY_PREFIX):
+        return
+    bucket_key = pattern_key[len(_APPROVAL_PATTERN_KEY_PREFIX):]
+    choice = context.get("choice") or ""
+    record_approval_outcome(bucket_key, choice)
 
 
 def _setup_router_cli(subparser) -> None:
@@ -480,6 +554,7 @@ def register(ctx) -> None:
     ctx.register_hook("post_api_request", _record_usage)
     ctx.register_hook("api_request_error", _record_api_error)
     ctx.register_hook("subagent_stop", _on_subagent_stop)
+    ctx.register_hook("post_approval_response", _on_approval_response)
     ctx.register_hook("transform_llm_output", _transform_output)
     ctx.register_middleware("tool_execution", _heal)
     ctx.register_cli_command(

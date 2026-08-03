@@ -149,23 +149,26 @@ def test_resolve_candidate_string_override_bypasses_health_tracking():
             calls.append(models)
             return super().ordered_candidates(models)
 
-    result = resolve_candidate("some-model", "default-model", _SpyTracker())
-    assert result == "some-model"
+    model, provider = resolve_candidate("some-model", "default-model", _SpyTracker())
+    assert model == "some-model"
+    assert provider is None  # 字符串格式（旧格式）不带 provider 信息
     assert calls == []  # 单字符串格式，健康追踪完全不介入
 
 
 def test_resolve_candidate_none_uses_default():
     from guardrails.model_health import ModelHealthTracker
 
-    result = resolve_candidate(None, "default-model", ModelHealthTracker())
-    assert result == "default-model"
+    model, provider = resolve_candidate(None, "default-model", ModelHealthTracker())
+    assert model == "default-model"
+    assert provider is None
 
 
 def test_resolve_candidate_empty_list_uses_default():
     from guardrails.model_health import ModelHealthTracker
 
-    result = resolve_candidate([], "default-model", ModelHealthTracker())
-    assert result == "default-model"
+    model, provider = resolve_candidate([], "default-model", ModelHealthTracker())
+    assert model == "default-model"
+    assert provider is None
 
 
 def test_resolve_candidate_list_picks_healthiest_first():
@@ -173,12 +176,61 @@ def test_resolve_candidate_list_picks_healthiest_first():
 
     health = ModelHealthTracker(failure_threshold=1)
     health.record_failure("model-a", "TimeoutError")
-    result = resolve_candidate(["model-a", "model-b"], "default-model", health)
-    assert result == "model-b"
+    model, provider = resolve_candidate(["model-a", "model-b"], "default-model", health)
+    assert model == "model-b"
+    assert provider is None  # 候选链格式不支持 provider 归属声明
 
 
 def test_resolve_candidate_list_all_healthy_picks_first():
     from guardrails.model_health import ModelHealthTracker
 
-    result = resolve_candidate(["model-a", "model-b"], "default-model", ModelHealthTracker())
-    assert result == "model-a"
+    model, provider = resolve_candidate(["model-a", "model-b"], "default-model", ModelHealthTracker())
+    assert model == "model-a"
+    assert provider is None
+
+
+
+def test_resolve_candidate_dict_format_returns_model_and_provider():
+    from guardrails.model_health import ModelHealthTracker
+
+    tier_override = {"model": "gpt-5", "provider": "openai"}
+    model, provider = resolve_candidate(tier_override, "default-model", ModelHealthTracker())
+    assert model == "gpt-5"
+    assert provider == "openai"
+
+
+def test_resolve_candidate_dict_format_missing_model_uses_default():
+    from guardrails.model_health import ModelHealthTracker
+
+    tier_override = {"provider": "openai"}
+    model, provider = resolve_candidate(tier_override, "default-model", ModelHealthTracker())
+    assert model == "default-model"
+    assert provider is None
+
+
+def test_is_valid_tier_value_accepts_dict_with_model():
+    with tempfile.TemporaryDirectory() as d:
+        path = Path(d) / "tiers.json"
+        path.write_text(
+            json.dumps({"enabled": True, "tiers": {
+                "l2_deep": {"model": "gpt-5", "provider": "openai"},
+            }}),
+            encoding="utf-8",
+        )
+        enabled, overrides = load_tier_overrides(path=path)
+        assert overrides == {"l2_deep": {"model": "gpt-5", "provider": "openai"}}
+
+
+def test_is_valid_tier_value_rejects_dict_without_model():
+    with tempfile.TemporaryDirectory() as d:
+        path = Path(d) / "tiers.json"
+        path.write_text(
+            json.dumps({"enabled": True, "tiers": {
+                "l2_deep": {"provider": "openai"},
+                "l3_critical": "still-valid",
+            }}),
+            encoding="utf-8",
+        )
+        enabled, overrides = load_tier_overrides(path=path)
+        assert "l2_deep" not in overrides  # dict 缺 model 字段，整条丢弃
+        assert overrides["l3_critical"] == "still-valid"

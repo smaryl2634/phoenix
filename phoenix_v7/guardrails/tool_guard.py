@@ -66,6 +66,8 @@ def evaluate(
     tool_name: str | None = None,
     is_scheduled: bool = False,
     is_loop_active: bool = False,
+    is_hardline: bool = False,
+    is_trusted: bool = False,
 ) -> dict | None:
     if tool_name not in SAFE_TOOL_WHITELIST and not breaker_allows:
         return {
@@ -81,7 +83,8 @@ def evaluate(
         if is_scheduled:
             # 调度/Loop 触发的调用没有人在场按"批准"，走 approve 会永久挂起。
             # 但也不能因此直接放行——跳过执行，留下可审计的记录，而不是无人监督
-            # 下直接跑。
+            # 下直接跑。这条分支不受信任机制影响——is_trusted 只管"人工审批门槛
+            # 要不要触发"，跟"无人在场时怎么处理"是两回事。
             return {
                 "action": "block",
                 "message": (
@@ -105,9 +108,13 @@ def evaluate(
                 ),
                 "rule_key": "phoenix_v7_loop_high_tier_needs_evaluator",
             }
+        # 信任机制：同一工具类型连续批准够了就不再触发确认，除非命中 Hermes 自己
+        # 判定的永久高危命令类别——那条安全红线不接受信任覆盖。
+        if is_trusted and not is_hardline:
+            return None
         return {
             "action": "approve",
             "message": f"phoenix_v7: 当前任务判定为 {tier} 档位，需要确认后才能执行工具",
-            "rule_key": "phoenix_v7_high_tier",
+            "rule_key": f"phoenix_v7_high_tier:{tool_name}",
         }
     return None

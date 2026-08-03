@@ -2,9 +2,33 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path.home() / ".hermes" / "hermes-agent"))
-sys.path.insert(0, str(Path.home() / ".hermes" / "plugins"))
+from hermes_constants import get_hermes_home
+
+sys.path.insert(0, str(get_hermes_home() / "hermes-agent"))
+sys.path.insert(0, str(get_hermes_home() / "plugins"))
 
 import phoenix_v7
+
+
+def test_guard_tool_flags_checkpoint_reminder_when_destructive_and_disabled(monkeypatch):
+    monkeypatch.setattr(phoenix_v7, "is_checkpoints_enabled", lambda: False)
+    phoenix_v7._checkpoint_reminder_pending_by_session.clear()
+    phoenix_v7._guard_tool("write_file", {"path": "/tmp/x.py"}, session_id="ckpt-1")
+    assert phoenix_v7._checkpoint_reminder_pending_by_session.get("ckpt-1") is True
+
+
+def test_guard_tool_does_not_flag_when_checkpoints_already_enabled(monkeypatch):
+    monkeypatch.setattr(phoenix_v7, "is_checkpoints_enabled", lambda: True)
+    phoenix_v7._checkpoint_reminder_pending_by_session.clear()
+    phoenix_v7._guard_tool("write_file", {"path": "/tmp/x.py"}, session_id="ckpt-2")
+    assert phoenix_v7._checkpoint_reminder_pending_by_session.get("ckpt-2", False) is False
+
+
+def test_guard_tool_does_not_flag_for_non_destructive_call(monkeypatch):
+    monkeypatch.setattr(phoenix_v7, "is_checkpoints_enabled", lambda: False)
+    phoenix_v7._checkpoint_reminder_pending_by_session.clear()
+    phoenix_v7._guard_tool("terminal", {"command": "ls -la"}, session_id="ckpt-3")
+    assert phoenix_v7._checkpoint_reminder_pending_by_session.get("ckpt-3", False) is False
 
 
 def _patch_goal(monkeypatch, *, active: bool, created_at: float = 100.0, seeded: bool = False):
@@ -111,3 +135,40 @@ def test_guard_tool_high_tier_todo_call_does_not_mark_seeded_until_allowed(monke
     allowed = phoenix_v7._guard_tool("todo", {"todos": []}, session_id="sess-high-todo")
     assert allowed is None
     assert seeded_calls == [("sess-high-todo", 100.0)]
+
+
+def test_guard_tool_passes_trusted_true_when_bucket_trusted(monkeypatch):
+    monkeypatch.setattr(phoenix_v7, "is_approval_trusted", lambda bucket_key: True)
+    monkeypatch.setattr(phoenix_v7, "_last_tier_by_session", {"trust-1": "l2_deep"})
+    result = phoenix_v7._guard_tool("write_file", {"path": "/tmp/x.py"}, session_id="trust-1")
+    assert result is None  # 信任够了，不该再触发确认
+
+
+def test_guard_tool_passes_trusted_false_when_bucket_not_trusted(monkeypatch):
+    monkeypatch.setattr(phoenix_v7, "is_approval_trusted", lambda bucket_key: False)
+    monkeypatch.setattr(phoenix_v7, "_last_tier_by_session", {"trust-2": "l2_deep"})
+    result = phoenix_v7._guard_tool("write_file", {"path": "/tmp/x.py"}, session_id="trust-2")
+    assert result is not None
+    assert result["action"] == "approve"
+
+
+def test_guard_tool_detects_hardline_terminal_command(monkeypatch):
+    # 即使信任已经攒够，命中永久高危命令类别时也不能跳过——这条走真实的
+    # tools.approval.detect_hardline_command()，用一个真实会被判定为hardline
+    # 的命令（清空根目录）而不是mock，验证import路径和真实判断逻辑本身可用。
+    monkeypatch.setattr(phoenix_v7, "is_approval_trusted", lambda bucket_key: True)
+    monkeypatch.setattr(phoenix_v7, "_last_tier_by_session", {"trust-3": "l3_critical"})
+    result = phoenix_v7._guard_tool(
+        "terminal", {"command": "rm -rf /"}, session_id="trust-3",
+    )
+    assert result is not None
+    assert result["action"] == "approve"
+
+
+def test_guard_tool_benign_command_not_treated_as_hardline(monkeypatch):
+    monkeypatch.setattr(phoenix_v7, "is_approval_trusted", lambda bucket_key: True)
+    monkeypatch.setattr(phoenix_v7, "_last_tier_by_session", {"trust-4": "l2_deep"})
+    result = phoenix_v7._guard_tool(
+        "terminal", {"command": "ls -la"}, session_id="trust-4",
+    )
+    assert result is None  # 信任够了、命令本身不是hardline，应该放行

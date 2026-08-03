@@ -3,7 +3,10 @@ from pathlib import Path
 from types import SimpleNamespace
 
 sys.path.insert(0, str(Path.home() / ".hermes" / "hermes-agent"))
-sys.path.insert(0, str(Path.home() / ".hermes" / "plugins"))
+from hermes_constants import get_hermes_home
+
+sys.path.insert(0, str(get_hermes_home() / "hermes-agent"))
+sys.path.insert(0, str(get_hermes_home() / "plugins"))
 
 import phoenix_v7
 from privacy.warning import PRIVACY_WARNING_TEXT
@@ -14,6 +17,11 @@ def _reset_state():
     phoenix_v7._current_provider_by_session.clear()
     phoenix_v7._privacy_flagged_by_session.clear()
     phoenix_v7._privacy_warned_sessions.clear()
+
+
+def _reset_checkpoint_state():
+    phoenix_v7._checkpoint_reminder_pending_by_session.clear()
+    phoenix_v7._checkpoint_reminder_warned_sessions.clear()
 
 
 # ---- _check_privacy_warning 单独测试 ----
@@ -73,6 +81,36 @@ def test_check_privacy_warning_handles_missing_session_id():
     assert result is None
 
 
+def test_check_checkpoint_reminder_appends_when_pending_and_unwarned():
+    _reset_checkpoint_state()
+    phoenix_v7._checkpoint_reminder_pending_by_session["ck1"] = True
+    result = phoenix_v7._check_checkpoint_reminder("原始回复内容", session_id="ck1")
+    assert result is not None
+    assert result.startswith("原始回复内容")
+    assert phoenix_v7.CHECKPOINT_REMINDER_TEXT in result
+    assert "ck1" in phoenix_v7._checkpoint_reminder_warned_sessions
+
+
+def test_check_checkpoint_reminder_skips_when_not_pending():
+    _reset_checkpoint_state()
+    result = phoenix_v7._check_checkpoint_reminder("原始回复内容", session_id="ck2")
+    assert result is None
+
+
+def test_check_checkpoint_reminder_skips_when_already_warned():
+    _reset_checkpoint_state()
+    phoenix_v7._checkpoint_reminder_pending_by_session["ck3"] = True
+    phoenix_v7._checkpoint_reminder_warned_sessions.add("ck3")
+    result = phoenix_v7._check_checkpoint_reminder("原始回复内容", session_id="ck3")
+    assert result is None
+
+
+def test_check_checkpoint_reminder_handles_missing_session_id():
+    _reset_checkpoint_state()
+    result = phoenix_v7._check_checkpoint_reminder("原始回复内容", session_id="")
+    assert result is None
+
+
 # ---- _transform_output 分发函数测试（合并幻觉核验+隐私提醒） ----
 
 def _fake_client(content: str):
@@ -110,6 +148,21 @@ def test_transform_output_privacy_only_preserves_original_text():
     assert PRIVACY_WARNING_TEXT in result
 
 
+def test_transform_output_checkpoint_reminder_preserves_original_text():
+    _reset_state()
+    _reset_checkpoint_state()
+    phoenix_v7._last_tier_by_session["ck4"] = "l1_daily"
+    phoenix_v7._privacy_flagged_by_session["ck4"] = False
+    phoenix_v7._current_provider_by_session["ck4"] = "nous"
+    phoenix_v7._checkpoint_reminder_pending_by_session["ck4"] = True
+    result = phoenix_v7._transform_output(
+        response_text="这是模型的真实回复内容", session_id="ck4", model="z-ai/glm-5.2",
+    )
+    assert result is not None
+    assert "这是模型的真实回复内容" in result
+    assert phoenix_v7.CHECKPOINT_REMINDER_TEXT in result
+
+
 def test_transform_output_hallucination_and_privacy_both_fire(monkeypatch):
     # l3_critical + get_text_auxiliary_client 返回一个会判"ISSUE"的假客户端 + 隐私命中
     # 两者都要生效：幻觉核验的前缀 + 原文 + 隐私提醒，全部在同一个返回字符串里。
@@ -130,3 +183,19 @@ def test_transform_output_hallucination_and_privacy_both_fire(monkeypatch):
     assert "原始回复内容一字不改" in result
     assert "这里的数字看起来是编造的" in result
     assert PRIVACY_WARNING_TEXT in result
+
+
+def test_transform_output_privacy_and_checkpoint_both_fire_stack_correctly():
+    _reset_state()
+    _reset_checkpoint_state()
+    phoenix_v7._last_tier_by_session["ck5"] = "l1_daily"
+    phoenix_v7._privacy_flagged_by_session["ck5"] = True
+    phoenix_v7._current_provider_by_session["ck5"] = "nous"
+    phoenix_v7._checkpoint_reminder_pending_by_session["ck5"] = True
+    result = phoenix_v7._transform_output(
+        response_text="原始回复内容一字不改", session_id="ck5", model="z-ai/glm-5.2",
+    )
+    assert result is not None
+    assert "原始回复内容一字不改" in result
+    assert PRIVACY_WARNING_TEXT in result
+    assert phoenix_v7.CHECKPOINT_REMINDER_TEXT in result

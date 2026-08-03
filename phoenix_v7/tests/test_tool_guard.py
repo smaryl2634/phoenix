@@ -18,7 +18,7 @@ def test_breaker_open_blocks():
 def test_high_tier_requires_approval():
     result = evaluate(tier="l2_deep", breaker_allows=True)
     assert result["action"] == "approve"
-    assert result["rule_key"] == "phoenix_v7_high_tier"
+    assert result["rule_key"] == "phoenix_v7_high_tier:None"
 
 
 def test_breaker_check_takes_priority_over_tier():
@@ -135,7 +135,7 @@ def test_loop_and_scheduled_both_true_scheduled_takes_priority():
 def test_loop_inactive_high_tier_unaffected():
     # 回归保证：is_loop_active 默认 False 时行为不变
     result = evaluate(tier="l2_deep", breaker_allows=True)
-    assert result["rule_key"] == "phoenix_v7_high_tier"
+    assert result["rule_key"] == "phoenix_v7_high_tier:None"
 
 
 def test_checklist_gate_allows_delegate_task_before_seeded():
@@ -164,3 +164,58 @@ def test_loop_active_high_tier_still_blocks_non_delegate_tools():
         tier="l3_critical", breaker_allows=True, tool_name="terminal", is_loop_active=True
     )
     assert result["rule_key"] == "phoenix_v7_loop_high_tier_needs_evaluator"
+
+
+def test_high_tier_requires_approval_rule_key_includes_tool_name():
+    result = evaluate(tier="l2_deep", breaker_allows=True, tool_name="write_file")
+    assert result["rule_key"] == "phoenix_v7_high_tier:write_file"
+
+
+def test_different_tools_get_different_rule_keys():
+    result_a = evaluate(tier="l2_deep", breaker_allows=True, tool_name="write_file")
+    result_b = evaluate(tier="l2_deep", breaker_allows=True, tool_name="terminal")
+    assert result_a["rule_key"] != result_b["rule_key"]
+
+
+def test_trusted_high_tier_call_skips_approval():
+    result = evaluate(
+        tier="l2_deep", breaker_allows=True, tool_name="write_file", is_trusted=True,
+    )
+    assert result is None
+
+
+def test_untrusted_high_tier_call_still_requires_approval():
+    result = evaluate(
+        tier="l2_deep", breaker_allows=True, tool_name="write_file", is_trusted=False,
+    )
+    assert result["action"] == "approve"
+
+
+def test_hardline_command_requires_approval_even_when_trusted():
+    # 安全红线：不管历史批准多少次，命中 Hermes 自己判定的永久高危命令类别，
+    # 信任机制不能覆盖这道保护。
+    result = evaluate(
+        tier="l3_critical", breaker_allows=True, tool_name="terminal",
+        is_trusted=True, is_hardline=True,
+    )
+    assert result["action"] == "approve"
+
+
+def test_trusted_but_not_hardline_still_skips():
+    # 上一条测试的对照组：确认不是"只要is_hardline参数存在就总是拦"，
+    # 而是精确只在 is_hardline=True 时才拦。
+    result = evaluate(
+        tier="l3_critical", breaker_allows=True, tool_name="terminal",
+        is_trusted=True, is_hardline=False,
+    )
+    assert result is None
+
+
+def test_scheduled_high_tier_ignores_trust():
+    # 调度/Loop触发的调用走的是"block，事后可见的跳过"这条分支，跟人工审批+
+    # 信任机制完全无关——is_trusted=True 不该让这条分支的行为发生变化。
+    result = evaluate(
+        tier="l3_critical", breaker_allows=True, is_scheduled=True, is_trusted=True,
+    )
+    assert result["action"] == "block"
+    assert result["rule_key"] == "phoenix_v7_scheduled_high_tier_skip"

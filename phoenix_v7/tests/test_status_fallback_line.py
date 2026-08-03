@@ -2,7 +2,10 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path.home() / ".hermes" / "hermes-agent"))
-sys.path.insert(0, str(Path.home() / ".hermes" / "plugins"))
+from hermes_constants import get_hermes_home
+
+sys.path.insert(0, str(get_hermes_home() / "hermes-agent"))
+sys.path.insert(0, str(get_hermes_home() / "plugins"))
 
 import phoenix_v7
 

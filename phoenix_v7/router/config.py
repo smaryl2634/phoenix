@@ -47,16 +47,26 @@ def load_tier_overrides(path: Path | None = None) -> tuple[bool, dict[str, str |
 
 
 def _is_valid_tier_value(value) -> bool:
-    """一个档位配的值合法当且仅当：单个模型字符串，或者一份纯字符串候选链列表。
+    """一个档位配的值合法当且仅当：单个模型字符串、一份纯字符串候选链列表，或者
+    带 provider 归属声明的字典 {"model": str, "provider": str}。
 
     2026-07-29修正：这个过滤器最早只认字符串，V6.1机制移植加入候选链（列表）
     格式后没有同步更新，导致列表值被静默丢弃——Task 4 真机验证时才发现
     resolve_candidate() 永远收不到候选链，因为 load_tier_overrides() 在它之前
-    就已经把列表值滤掉了。"""
+    就已经把列表值滤掉了。
+
+    2026-08-03新增dict格式：真实测试者审计报告指出候选模型只存纯字符串，没有
+    "这个模型属于哪个provider"这个字段，如果用户手动配置的候选模型名字实际属于
+    别的provider，_route()会原样发出去导致对方端点报错——这是几周前tiers.json
+    出厂配置泄漏事故的同一类根因换了个触发路径。dict格式让用户可以显式声明归属，
+    _route()据此做校验（见__init__.py）。"""
     if isinstance(value, str):
         return True
     if isinstance(value, list):
         return bool(value) and all(isinstance(m, str) for m in value)
+    if isinstance(value, dict):
+        model = value.get("model")
+        return isinstance(model, str) and bool(model)
     return False
 
 
@@ -86,21 +96,39 @@ def write_enabled(enabled: bool, path: Path | None = None) -> None:
 
 
 def resolve_candidate(
-    tier_override: str | list[str] | None,
+    tier_override: str | list[str] | dict | None,
     default_model: str,
     health,
-) -> str:
-    """把 tiers.json 里某个档位的配置值（字符串=单模型，列表=候选链，
-    None=没配这档）解析成实际要用的模型字符串。
+) -> tuple[str, str | None]:
+    """把 tiers.json 里某个档位的配置值解析成 (实际要用的模型字符串, 这个候选声明
+    的 provider —— 没声明就是 None)。
+
+    字符串/列表格式（旧格式）不带 provider 信息，返回的 provider 固定是 None——
+    调用方（_route()）看到 None 代表"这个候选没告诉我们它属于哪个 provider"，按
+    现状兼容处理（不因为缺失就拦截，否则所有存量配置一升级就集体失效，参考本文件
+    其它格式升级一贯遵守的"不能让用户被动改变行为"原则）；只有候选明确声明了
+    provider 且跟当前 provider 不一致时才拦截。dict 格式
+    {"model": "...", "provider": "..."} 才是新格式，显式声明归属，才吃得到这层
+    保护——这是渐进式的opt-in，不是强制迁移。
+
+    候选链（列表）格式目前只支持纯字符串，不支持列表里混 dict——链式候选场景本来
+    就是给"同一个 provider 下的模型故障转移"设计的，加 provider 归属校验的收益
+    不大，这里刻意不做，YAGNI。
 
     字符串格式完全不触碰健康追踪——单模型用户没有候选链可言，这条路径必须
     零开销、零新增故障面。列表格式才会调用 health.ordered_candidates() 挑
     链里最健康的排第一个。"""
     if tier_override is None:
-        return default_model
+        return default_model, None
     if isinstance(tier_override, str):
-        return tier_override
+        return tier_override, None
+    if isinstance(tier_override, dict):
+        model = tier_override.get("model")
+        if not isinstance(model, str) or not model:
+            return default_model, None
+        provider = tier_override.get("provider")
+        return model, (provider if isinstance(provider, str) and provider else None)
     if not tier_override:
-        return default_model
+        return default_model, None
     ordered = health.ordered_candidates(tier_override)
-    return ordered[0]
+    return ordered[0], None
