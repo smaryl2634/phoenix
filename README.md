@@ -6,7 +6,7 @@
 [![Tests](https://img.shields.io/badge/tests-252%2F252-A3FF12.svg?style=flat-square)](phoenix_v7/tests)
 [![License](https://img.shields.io/badge/license-CC%20BY--NC%204.0-16A34A.svg?style=flat-square)](LICENSE)
 
-> 装在 [Hermes Agent](https://github.com/NousResearch/hermes-agent) 上的插件。路由分档、风险防线、自愈系统，全程官方插件钩子接入，不改 Hermes 一行核心代码。
+> 装在 [Hermes Agent](https://smaryl2634.github.io) 上的插件。路由分档、风险防线、自愈系统，全程官方插件钩子接入，不改 Hermes 一行核心代码。
 
 **支持：Hermes Agent。** 全程通过官方插件系统加载，卸载即恢复原状。
 
